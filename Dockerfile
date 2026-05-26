@@ -1,8 +1,7 @@
 # ───────── Build stage ─────────
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 
-# Всё, что раньше было в .npmrc — теперь в ENV, чтобы не зависеть от файла
 ENV NPM_CONFIG_PRODUCTION=false \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false \
@@ -12,7 +11,6 @@ ENV NPM_CONFIG_PRODUCTION=false \
     NPM_CONFIG_FETCH_TIMEOUT=600000 \
     NODE_ENV=development
 
-# package*.json подхватит и package.json, и package-lock.json, если он есть
 COPY package*.json ./
 RUN npm install --include=dev --no-audit --no-fund
 
@@ -20,7 +18,7 @@ COPY . .
 RUN ./node_modules/.bin/vite build
 
 # ───────── Runtime stage ─────────
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \

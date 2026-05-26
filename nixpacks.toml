@@ -1,12 +1,12 @@
 providers = ["node"]
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
   "npm config set production false",
-  "npm install --include=dev --no-audit --no-fund --prefer-offline=false"
+  "npm install --include=dev --no-audit --no-fund"
 ]
 
 [phases.build]
