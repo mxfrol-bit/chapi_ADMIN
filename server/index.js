@@ -58,9 +58,12 @@ function normalizeSubmission(body = {}) {
     psychology: body.psychology || {},
     cases: body.cases || {},
     trends: Array.isArray(body.trends) ? body.trends : [],
+    promptTest: body.promptTest || body.prompt_test || {},
+    trendCard: body.trendCard || body.trend_card || {},
     topTrends: Array.isArray(body.topTrends) ? body.topTrends : [],
     packaging: body.packaging || {},
-    kaizen: body.kaizen || {}
+    kaizen: body.kaizen || {},
+    timings: body.timings || {}
   };
 
   const scores = calculateScores(payload);
@@ -74,9 +77,13 @@ function normalizeSubmission(body = {}) {
     psychology: payload.psychology,
     cases: payload.cases,
     trends: payload.trends,
+    prompt_test: payload.promptTest,
+    trend_card: payload.trendCard,
     top_trends: payload.topTrends,
     packaging: payload.packaging,
     kaizen: payload.kaizen,
+    timings: payload.timings,
+    duration_seconds: Number(scores.durationSeconds || 0),
     scores,
     recommendation: {
       role: scores.role,
@@ -118,7 +125,7 @@ app.get('/api/admin/submissions', requireSupabase, requireAdmin, async (req, res
   const { status, q } = req.query;
   let query = supabase
     .from('chappy_candidate_tests')
-    .select('id, created_at, updated_at, candidate_name, contact, telegram, source, status, profile, trends, top_trends, packaging, kaizen, scores, recommendation, notes')
+    .select('id, created_at, updated_at, candidate_name, contact, telegram, source, status, profile, trends, prompt_test, trend_card, top_trends, packaging, kaizen, timings, duration_seconds, scores, recommendation, notes')
     .order('created_at', { ascending: false })
     .limit(500);
 

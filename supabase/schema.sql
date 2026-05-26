@@ -1,5 +1,6 @@
--- Chappy Candidate Lab · Supabase schema
--- Run in Supabase Dashboard → SQL Editor once.
+-- Chappy Candidate Lab · Supabase schema v2
+-- Run in Supabase Dashboard → SQL Editor.
+-- Safe to run repeatedly. If v1 table already exists, ALTER TABLE adds new fields.
 
 create extension if not exists pgcrypto;
 
@@ -17,9 +18,13 @@ create table if not exists public.chappy_candidate_tests (
   psychology jsonb not null default '{}'::jsonb,
   cases jsonb not null default '{}'::jsonb,
   trends jsonb not null default '[]'::jsonb,
+  prompt_test jsonb not null default '{}'::jsonb,
+  trend_card jsonb not null default '{}'::jsonb,
   top_trends jsonb not null default '[]'::jsonb,
   packaging jsonb not null default '{}'::jsonb,
   kaizen jsonb not null default '{}'::jsonb,
+  timings jsonb not null default '{}'::jsonb,
+  duration_seconds integer not null default 0,
 
   scores jsonb not null default '{}'::jsonb,
   recommendation jsonb not null default '{}'::jsonb,
@@ -28,11 +33,18 @@ create table if not exists public.chappy_candidate_tests (
   notes text
 );
 
+alter table public.chappy_candidate_tests add column if not exists prompt_test jsonb not null default '{}'::jsonb;
+alter table public.chappy_candidate_tests add column if not exists trend_card jsonb not null default '{}'::jsonb;
+alter table public.chappy_candidate_tests add column if not exists timings jsonb not null default '{}'::jsonb;
+alter table public.chappy_candidate_tests add column if not exists duration_seconds integer not null default 0;
+
 create index if not exists idx_chappy_candidate_tests_created_at on public.chappy_candidate_tests (created_at desc);
 create index if not exists idx_chappy_candidate_tests_status on public.chappy_candidate_tests (status);
 create index if not exists idx_chappy_candidate_tests_score on public.chappy_candidate_tests (((scores->>'total')::int));
+create index if not exists idx_chappy_candidate_tests_duration on public.chappy_candidate_tests (duration_seconds);
 create index if not exists idx_chappy_candidate_tests_trends_gin on public.chappy_candidate_tests using gin (trends);
 create index if not exists idx_chappy_candidate_tests_recommendation_gin on public.chappy_candidate_tests using gin (recommendation);
+create index if not exists idx_chappy_candidate_tests_timings_gin on public.chappy_candidate_tests using gin (timings);
 
 -- Security model for this MVP:
 -- Browser never receives SUPABASE_SERVICE_ROLE_KEY.

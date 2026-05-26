@@ -1,48 +1,52 @@
-# Chappy Candidate Lab
+# Chappy Candidate Lab v2
 
-Готовый мини-проект под **Railway + Supabase**: кандидатка проходит тест, добавляет AI-тренды по одному, заполняет кейсы, упаковку и kaizen-блок. Результат сохраняется в Supabase и отображается в админке.
+Railway + Supabase мини-приложение для этапного тестирования кандидаток в Chappy.
 
 ## Что внутри
 
 - React + Vite frontend.
 - Express backend для Railway.
 - Supabase через `SUPABASE_SERVICE_ROLE_KEY` только на сервере.
-- Кандидатская форма: `/#candidate`.
-- Админка: `/#admin`.
-- Динамическое добавление трендов: не фиксированные 10, а сколько кандидатка сможет.
-- Автосохранение черновика в браузере.
-- Авторасчёт score / role / grade.
-- Админка со статусами, заметками и просмотром всех ответов.
-
-## Быстрый запуск локально
-
-```bash
-npm install
-cp .env.example .env
-# заполни .env
-npm run dev
-```
-
-Открой:
-
-- кандидат: `http://localhost:5173/#candidate`
-- админка: `http://localhost:5173/#admin`
+- Кандидатская страница: `/#candidate`.
+- Админка результатов: `/#admin`.
+- Этапный тест с фиксацией времени прохождения каждого этапа:
+  1. Найти идеи.
+  2. Протестировать промт.
+  3. Оформить карточку тренда.
+  4. Написать пост / рассылку / сторис.
+  5. Объяснить сильное, слабое, метрики и улучшение через 24 часа.
+  6. Короткий психо-ритм.
+- Тренды добавляются по одному: минимум 3, максимум не ограничен.
+- В админке видно: score, роль, грейд, скорость по этапам, идеи, промт-тест, карточку, контент, kaizen-ответы, статус и заметки.
 
 ## Supabase
 
-1. Открой Supabase → SQL Editor.
-2. Вставь и выполни `supabase/schema.sql`.
-3. В Project Settings → API возьми:
-   - `Project URL` → `SUPABASE_URL`
-   - `service_role secret` → `SUPABASE_SERVICE_ROLE_KEY`
+В Supabase открой SQL Editor и запусти:
 
-Важно: `service_role` нельзя вставлять во frontend. В этом проекте он хранится только в Railway env и используется Express-сервером.
+```sql
+-- файл supabase/schema.sql
+```
 
-## Railway deploy
+Если таблица v1 уже создана, этот файл безопасно добавит новые поля через `alter table ... add column if not exists`.
 
-1. Создай новый Railway project.
-2. Подключи GitHub repo.
-3. Добавь Variables:
+Таблица:
+
+```txt
+public.chappy_candidate_tests
+```
+
+Новые поля v2:
+
+```txt
+prompt_test jsonb
+trend_card jsonb
+timings jsonb
+duration_seconds integer
+```
+
+## Railway Variables
+
+Добавь в Railway:
 
 ```env
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
@@ -51,31 +55,37 @@ ADMIN_PIN=your-strong-admin-pin
 VITE_APP_TITLE=Chappy Candidate Lab
 ```
 
-4. Railway сам выполнит:
+`SUPABASE_SERVICE_ROLE_KEY` нельзя коммитить в GitHub.
+
+## Локальный запуск
 
 ```bash
-npm install && npm run build
+npm install
+npm run dev
+```
+
+## Production
+
+Railway использует:
+
+```bash
+npm run build
 npm run start
 ```
 
-## Проверка после деплоя
+Проверка:
 
-- `/api/health` — должен вернуть `ok: true` и `supabase: true`.
-- `/#candidate` — форма кандидатки.
-- `/#admin` — админка, PIN = `ADMIN_PIN`.
+```bash
+curl https://YOUR_APP.railway.app/api/health
+```
 
-## Где менять вопросы
+## GitHub push
 
-Файл `shared/scoring.js`:
-
-- `PSYCHOLOGY_QUESTIONS` — психологические вопросы.
-- `CASES` — рабочие кейсы.
-- `calculateScores()` — логика score / роли / грейда.
-
-## Статусы в админке
-
-- `submitted` — новая анкета.
-- `reviewed` — просмотрено.
-- `interview` — звать на собеседование.
-- `reject` — отказ.
-- `hired` — взяли в работу.
+```bash
+git init
+git add .
+git commit -m "Chappy staged candidate test v2"
+git branch -M main
+git remote add origin YOUR_GITHUB_REPO_URL
+git push -u origin main
+```

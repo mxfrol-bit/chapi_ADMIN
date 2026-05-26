@@ -7,7 +7,8 @@ export const AXES = [
   'autonomy',
   'kaizen',
   'resilience',
-  'product'
+  'product',
+  'speed'
 ];
 
 export const AXIS_LABELS = {
@@ -19,7 +20,8 @@ export const AXIS_LABELS = {
   autonomy: 'Самостоятельность',
   kaizen: 'Kaizen',
   resilience: 'Устойчивость',
-  product: 'Продуктовое мышление'
+  product: 'Продуктовое мышление',
+  speed: 'Скорость решения'
 };
 
 export const PSYCHOLOGY_QUESTIONS = [
@@ -45,18 +47,7 @@ export const PSYCHOLOGY_QUESTIONS = [
   { id: 'q20', axis: 'product', text: 'Для меня хороший контент — тот, который двигает пользователя к действию.' }
 ];
 
-export const CASES = [
-  { id: 'c1', axis: 'product', title: 'Красиво, но не покупают', text: 'Тренд выглядит вау, но по нему мало запусков. Что проверишь и что поменяешь?' },
-  { id: 'c2', axis: 'prompts', title: 'Промт даёт мусор', text: 'Идея сильная, но генерация нестабильная: то портит лицо, то уходит не в тот стиль. Что сделаешь?' },
-  { id: 'c3', axis: 'metrics', title: 'Много кликов, мало оплат', text: 'Карточку открывают, генерацию запускают, но кредиты не покупают. Какие гипотезы?' },
-  { id: 'c4', axis: 'creative', title: 'Блогеру надо объяснить за 15 секунд', text: 'Как бы ты упакoвала тренд для сторис блогера, чтобы аудитория захотела повторить?' },
-  { id: 'c5', axis: 'discipline', title: 'Дедлайн завтра', text: 'Нужно сдать 10 трендов за день. Как расставишь приоритеты и что точно не будешь делать?' },
-  { id: 'c6', axis: 'trends', title: 'Найти ранний сигнал', text: 'Где будешь искать тренды до того, как они станут заезженными?' },
-  { id: 'c7', axis: 'kaizen', title: 'Улучшение через 24 часа', text: 'Запустили тренд. Какие 3 правки сделаешь после первых цифр?' },
-  { id: 'c8', axis: 'resilience', title: 'Жёсткая правка', text: 'Руководитель сказал: “не то, переделать”. Как поймёшь, что именно не то?' },
-  { id: 'c9', axis: 'autonomy', title: 'Нет ТЗ', text: 'Тебе сказали: “найди что-то для девушек 18–30, чтобы захотели загрузить фото”. Что делаешь первые 60 минут?' },
-  { id: 'c10', axis: 'product', title: 'Выбор первого запуска', text: 'Есть 3 тренда: красивый, смешной и полезный. Как выберешь первый для запуска?' }
-];
+export const CASES = [];
 
 const clamp = (n, min = 0, max = 100) => Math.max(min, Math.min(max, n));
 const filled = (v) => typeof v === 'string' && v.trim().length > 0;
@@ -70,6 +61,23 @@ function scoreText(v, max = 10) {
   return max;
 }
 
+function scoreSpeed(payload = {}, trendsCount = 0) {
+  const stages = payload.timings?.stages || {};
+  const seconds = Object.values(stages).reduce((sum, st) => sum + Number(st?.durationSec || 0), 0);
+  if (!seconds) return { score: 50, seconds: 0 };
+
+  const minutes = seconds / 60;
+  const volumeBonus = clamp((trendsCount - 3) * 5, 0, 20);
+  let base = 30;
+  if (minutes <= 45) base = 100;
+  else if (minutes <= 90) base = 86;
+  else if (minutes <= 150) base = 72;
+  else if (minutes <= 240) base = 58;
+  else if (minutes <= 480) base = 42;
+  else if (minutes <= 1440) base = 28;
+  return { score: clamp(base + volumeBonus), seconds };
+}
+
 export function calculateScores(payload = {}) {
   const axisRaw = Object.fromEntries(AXES.map(a => [a, 0]));
   const axisMax = Object.fromEntries(AXES.map(a => [a, 1]));
@@ -81,19 +89,11 @@ export function calculateScores(payload = {}) {
     axisMax[q.axis] += 4;
   }
 
-  const cases = payload.cases || {};
-  for (const c of CASES) {
-    const s = scoreText(cases[c.id], 8);
-    axisRaw[c.axis] += s;
-    axisMax[c.axis] += 8;
-  }
-
-  const trends = Array.isArray(payload.trends) ? payload.trends : [];
+  const trends = Array.isArray(payload.trends) ? payload.trends.filter(t => filled(t?.title)) : [];
   let trendQuality = 0;
   let promptQuality = 0;
   let productQuality = 0;
   let creativeQuality = 0;
-  let metricsQuality = 0;
 
   trends.forEach(t => {
     const fields = ['title', 'source', 'description', 'upload', 'output', 'clickability', 'audience'];
@@ -104,45 +104,74 @@ export function calculateScores(payload = {}) {
     creativeQuality += scoreText(t?.description, 4) + scoreText(t?.output, 4);
   });
 
-  axisRaw.trends += Math.min(45, trendQuality);
-  axisMax.trends += 45;
-  axisRaw.prompts += Math.min(40, promptQuality);
-  axisMax.prompts += 40;
-  axisRaw.product += Math.min(35, productQuality);
-  axisMax.product += 35;
-  axisRaw.creative += Math.min(35, creativeQuality);
-  axisMax.creative += 35;
+  axisRaw.trends += Math.min(48, trendQuality);
+  axisMax.trends += 48;
+  axisRaw.prompts += Math.min(18, promptQuality);
+  axisMax.prompts += 18;
+  axisRaw.product += Math.min(36, productQuality);
+  axisMax.product += 36;
+  axisRaw.creative += Math.min(30, creativeQuality);
+  axisMax.creative += 30;
+
+  const promptTest = payload.promptTest || payload.prompt_test || {};
+  axisRaw.prompts += scoreText(promptTest.originalPrompt, 10) + scoreText(promptTest.improvedPrompt, 12) + scoreText(promptTest.whatChanged, 8) + scoreText(promptTest.testResult, 6);
+  axisMax.prompts += 36;
+  axisRaw.kaizen += scoreText(promptTest.whatChanged, 6) + scoreText(promptTest.finalVerdict, 6);
+  axisMax.kaizen += 12;
+  axisRaw.product += scoreText(promptTest.finalVerdict, 6);
+  axisMax.product += 6;
+
+  const trendCard = payload.trendCard || payload.trend_card || {};
+  axisRaw.creative += scoreText(trendCard.title, 4) + scoreText(trendCard.subtitle, 4) + scoreText(trendCard.previewText, 6);
+  axisMax.creative += 14;
+  axisRaw.product += scoreText(trendCard.whatUpload, 5) + scoreText(trendCard.whatResult, 5) + scoreText(trendCard.priceHook, 8) + scoreText(trendCard.qualityCheck, 6);
+  axisMax.product += 24;
+  axisRaw.metrics += scoreText(trendCard.qualityCheck, 5);
+  axisMax.metrics += 5;
 
   const packaging = payload.packaging || {};
   axisRaw.creative += scoreText(packaging.telegramPost, 12) + scoreText(packaging.botBroadcast, 8) + scoreText(packaging.bloggerStories, 10);
   axisMax.creative += 30;
   axisRaw.product += scoreText(packaging.cardTitles, 5) + scoreText(packaging.cta, 5);
   axisMax.product += 10;
-  axisRaw.metrics += scoreText(payload.kaizen?.metrics, 12) + scoreText(payload.kaizen?.improve24h, 10);
-  axisMax.metrics += 22;
-  axisRaw.kaizen += scoreText(payload.kaizen?.improve24h, 12) + scoreText(payload.kaizen?.selfGrowth, 8);
-  axisMax.kaizen += 20;
-  axisRaw.autonomy += Math.min(18, trends.length * 3);
-  axisMax.autonomy += 18;
+
+  const kaizen = payload.kaizen || {};
+  axisRaw.metrics += scoreText(kaizen.metrics, 12) + scoreText(kaizen.improve24h, 10) + scoreText(kaizen.biggestPurchase, 6);
+  axisMax.metrics += 28;
+  axisRaw.kaizen += scoreText(kaizen.improve24h, 12) + scoreText(kaizen.selfGrowth, 8) + scoreText(kaizen.weakestTrend, 6);
+  axisMax.kaizen += 26;
+  axisRaw.product += scoreText(kaizen.firstLaunch, 8) + scoreText(kaizen.biggestPurchase, 6);
+  axisMax.product += 14;
+
+  const speed = scoreSpeed(payload, trends.length);
+  axisRaw.speed += speed.score;
+  axisMax.speed += 100;
+
+  axisRaw.autonomy += Math.min(26, trends.length * 4) + (filled(promptTest.finalVerdict) ? 6 : 0);
+  axisMax.autonomy += 32;
   axisRaw.discipline += filled(payload.profile?.availableTime) ? 4 : 0;
-  axisMax.discipline += 4;
+  axisRaw.discipline += Math.min(16, Object.values(payload.timings?.stages || {}).filter(st => st?.completedAt).length * 2);
+  axisMax.discipline += 20;
+  axisRaw.resilience += scoreText(promptTest.whatChanged, 8) + scoreText(kaizen.improve24h, 6);
+  axisMax.resilience += 14;
 
   const axes = {};
   AXES.forEach(axis => {
     axes[axis] = clamp(Math.round((axisRaw[axis] / axisMax[axis]) * 100));
   });
 
-  const trendCountBonus = clamp(trends.length * 4, 0, 20);
+  const trendCountBonus = clamp(trends.length * 3, 0, 18);
   const average = Math.round(AXES.reduce((sum, axis) => sum + axes[axis], 0) / AXES.length);
-  const total = clamp(Math.round(average * 0.82 + trendCountBonus));
+  const total = clamp(Math.round(average * 0.84 + trendCountBonus));
 
   const role = pickRole(axes, total);
   const grade = pickGrade(total, axes, trends.length);
   const riskFlags = [];
-  if (axes.discipline < 45) riskFlags.push('риск по дисциплине и отчётности');
+  if (axes.discipline < 45) riskFlags.push('риск по дисциплине и закрытию этапов');
+  if (axes.speed < 40) riskFlags.push('низкая скорость решения');
   if (axes.metrics < 40) riskFlags.push('слабая работа с метриками');
   if (axes.prompts < 40) riskFlags.push('нужно обучать промтам');
-  if (trends.length < 3) riskFlags.push('мало трендов для оценки');
+  if (trends.length < 3) riskFlags.push('мало идей для оценки');
   if (total < 35) riskFlags.push('низкая готовность к роли');
 
   return {
@@ -151,6 +180,7 @@ export function calculateScores(payload = {}) {
     grade,
     role,
     trendsCount: trends.length,
+    durationSeconds: speed.seconds,
     riskFlags,
     summary: makeSummary(total, role, grade, axes, trends.length)
   };
@@ -158,8 +188,8 @@ export function calculateScores(payload = {}) {
 
 function pickRole(axes, total) {
   if (total < 35) return 'Пока не брать / только стажировка';
-  const trendPrompt = axes.trends + axes.prompts + axes.product;
-  const contentCreative = axes.creative + axes.product + axes.metrics;
+  const trendPrompt = axes.trends + axes.prompts + axes.product + Math.round(axes.speed * 0.35);
+  const contentCreative = axes.creative + axes.product + axes.metrics + Math.round(axes.kaizen * 0.25);
   if (trendPrompt - contentCreative > 18) return 'Trend & Prompt Operator';
   if (contentCreative - trendPrompt > 12) return 'Content & Creative Operator';
   if (axes.autonomy > 62 && axes.product > 58) return 'Universal Content Operator';
@@ -183,8 +213,9 @@ function topAxes(axes) {
 
 function makeSummary(total, role, grade, axes, trendsCount) {
   const tops = topAxes(axes).join(', ');
-  if (total < 35) return `Пока рано брать в работу. Потенциал нужно проверять через маленькое оплачиваемое задание. Сильнее всего проявлены: ${tops}. Трендов добавлено: ${trendsCount}.`;
-  if (total < 55) return `Можно рассматривать как Junior под контроль и обучение. Рекомендуемая роль: ${role}. Сильные стороны: ${tops}. Трендов добавлено: ${trendsCount}.`;
-  if (total < 72) return `Хороший кандидат на тестовый период. Роль: ${role}. Грейд: ${grade}. Сильные стороны: ${tops}.`;
-  return `Сильный кандидат. Роль: ${role}. Грейд: ${grade}. Есть потенциал вести блок самостоятельно при корректной постановке KPI.`;
+  const speedLine = axes.speed >= 70 ? 'скорость сильная' : axes.speed >= 45 ? 'скорость средняя' : 'скорость слабая';
+  if (total < 35) return `Пока рано брать в работу. Проверять только через маленькое оплачиваемое задание. Сильнее всего проявлены: ${tops}. Идей добавлено: ${trendsCount}, ${speedLine}.`;
+  if (total < 55) return `Можно рассматривать как Junior под контроль и обучение. Рекомендуемая роль: ${role}. Сильные стороны: ${tops}. Идей добавлено: ${trendsCount}, ${speedLine}.`;
+  if (total < 72) return `Хороший кандидат на тестовый период. Роль: ${role}. Грейд: ${grade}. Сильные стороны: ${tops}. ${speedLine}.`;
+  return `Сильный кандидат. Роль: ${role}. Грейд: ${grade}. Есть потенциал вести блок самостоятельно при корректной постановке KPI. ${speedLine}.`;
 }
