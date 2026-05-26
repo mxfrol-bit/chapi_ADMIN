@@ -1,11 +1,21 @@
+providers = ["node"]
+
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm install --include=dev --no-audit --no-fund"]
+cmds = [
+  "npm config set production false",
+  "npm install --include=dev --no-audit --no-fund --prefer-offline=false"
+]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["./node_modules/.bin/vite build"]
 
 [start]
-cmd = "npm run start"
+cmd = "node server/index.js"
+
+[variables]
+NPM_CONFIG_PRODUCTION = "false"
+NODE_ENV = "production"
+CI = "true"
