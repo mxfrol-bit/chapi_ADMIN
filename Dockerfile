@@ -1,26 +1,35 @@
+# ───────── Build stage ─────────
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Чтобы npm не выкидывал devDeps из-за NODE_ENV из Railway env
-ENV NPM_CONFIG_PRODUCTION=false
-ENV NODE_ENV=development
+# Всё, что раньше было в .npmrc — теперь в ENV, чтобы не зависеть от файла
+ENV NPM_CONFIG_PRODUCTION=false \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000 \
+    NPM_CONFIG_FETCH_TIMEOUT=600000 \
+    NODE_ENV=development
 
-COPY package.json ./
-COPY .npmrc ./
+# package*.json подхватит и package.json, и package-lock.json, если он есть
+COPY package*.json ./
 RUN npm install --include=dev --no-audit --no-fund
 
 COPY . .
 RUN ./node_modules/.bin/vite build
 
-# --- Runtime stage ---
+# ───────── Runtime stage ─────────
 FROM node:20-slim AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=3001
+ENV NODE_ENV=production \
+    NPM_CONFIG_PRODUCTION=true \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false \
+    PORT=3001
 
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/.npmrc ./
+COPY package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY --from=builder /app/dist ./dist
