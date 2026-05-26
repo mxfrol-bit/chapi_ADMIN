@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "concurrently \"vite --host 0.0.0.0\" \"node server/index.js\"",
     "build": "vite build",
@@ -10,19 +11,20 @@
     "preview": "vite preview --host 0.0.0.0 --port ${PORT:-4173}"
   },
   "dependencies": {
-    "@supabase/supabase-js": "latest",
-    "cors": "latest",
-    "dotenv": "latest",
-    "express": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "@supabase/supabase-js": "^2.49.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "latest",
-    "concurrently": "latest",
-    "vite": "latest"
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "vite": "^6.0.11"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x",
+    "npm": ">=10 <11"
   }
 }

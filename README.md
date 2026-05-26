@@ -89,3 +89,9 @@ git branch -M main
 git remote add origin YOUR_GITHUB_REPO_URL
 git push -u origin main
 ```
+
+## Railway build fix
+
+This build intentionally does not include package-lock.json. Railway/Nixpacks sometimes selects Node 24 and npm 9 when a broad engine range is used; this project pins Node 20 via `.nvmrc`, `engines`, and `nixpacks.toml`.
+
+Use only Railway Variables for secrets. Do not put `SUPABASE_SERVICE_ROLE_KEY` into GitHub files.
