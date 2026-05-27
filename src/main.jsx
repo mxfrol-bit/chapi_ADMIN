@@ -3,17 +3,18 @@ import { createRoot } from 'react-dom/client';
 import { AXIS_LABELS, PSYCHOLOGY_QUESTIONS, calculateScores } from '../shared/scoring.js';
 import './styles.css';
 
-const STORAGE_KEY = 'chappy_candidate_lab_draft_v2_stage_test';
+const STORAGE_KEY = 'chappy_candidate_lab_draft_v4_friendly';
 
 const STAGES = [
-  { id: 'profile', title: 'Профиль', hint: 'Кто проходит тест. После этого запускается таймер.' },
-  { id: 'ideas', title: '1. Найти идеи', hint: 'Добавляй AI-тренды по одному. Минимум 3, максимум не ограничен.' },
-  { id: 'prompt', title: '2. Протестировать промт', hint: 'Выбери идею, напиши промт, опиши результат теста и улучшенную версию.' },
-  { id: 'card', title: '3. Оформить карточку', hint: 'Собери карточку тренда так, чтобы пользователь понял: что загрузить, что получит, зачем нажать.' },
-  { id: 'content', title: '4. Пост / рассылка', hint: 'Упакуй один тренд в Telegram, рассылку, сторис блогера, CTA и заголовки.' },
-  { id: 'analysis', title: '5. Сильное / слабое', hint: 'Коротко объясни, что запускать первым, где покупка, где риск, какие метрики смотреть.' },
-  { id: 'psych', title: '6. Психо-ритм', hint: 'Короткая самооценка: дисциплина, вкус, реакция на правки, kaizen.' },
-  { id: 'result', title: '7. Итог', hint: 'Проверка результата, скорости и отправка в Supabase.' }
+  { id: 'intro', title: 'Знакомство', hint: 'Что такое ЧАППИ и что делают Trend&Prompt и Content&Creative. 2 минуты, без полей.' },
+  { id: 'profile', title: 'Профиль', hint: 'Кто проходит. После этого запускается таймер.' },
+  { id: 'prompt', title: '1. Один промт', hint: 'Напиши промт для одной идеи и опиши, что улучшил бы. Это сердце роли.' },
+  { id: 'card', title: '2. Карточка тренда', hint: 'Оформи карточку так, как она появится в ЧАППИ: заголовок, что загрузить, что получит.' },
+  { id: 'content', title: '3. Пост / рассылка', hint: 'Упакуй идею в Telegram-пост и короткую рассылку. Это работа Контент-менеджера.' },
+  { id: 'ideas', title: '4. Идеи для канала', hint: 'Накидай 5 AI-трендов под ЧАППИ. Если устал — можно меньше, главное качество.' },
+  { id: 'analysis', title: '5. Что бы запустил', hint: 'Коротко: что первым, как мерить, где риск. Свободная форма.' },
+  { id: 'psych', title: 'Рабочий ритм · опционально', hint: '8 коротких вопросов про дисциплину. Можно пропустить и отправить как есть.' },
+  { id: 'result', title: 'Финал', hint: 'Проверь и отправь. Финальное решение — за руководителем.' }
 ];
 
 const emptyTrend = () => ({
@@ -81,12 +82,13 @@ const initialState = {
   timings: {
     totalStartedAt: '',
     totalCompletedAt: '',
-    currentStageId: 'profile',
+    currentStageId: 'intro',
     stages: {}
   }
 };
 
-const requiredPsychQuestions = PSYCHOLOGY_QUESTIONS.slice(0, 12);
+const requiredPsychQuestions = PSYCHOLOGY_QUESTIONS.slice(0, 8);
+const psychSoftMin = 6; // мягкий минимум — желательно ответить хотя бы 6 из 8, но не блокируем отправку
 
 function App() {
   const [route, setRoute] = useState(getRoute());
@@ -208,48 +210,50 @@ function CandidatePage() {
 
   function validateStep(index = step) {
     const id = STAGES[index].id;
-    const filledTrends = getFilledTrends(state.trends);
     if (id === 'profile') {
-      if (!state.profile.name.trim()) return 'Укажи имя.';
-      if (!state.profile.contact.trim() && !state.profile.telegram.trim()) return 'Укажи телефон/email или Telegram.';
+      if (!state.profile.name.trim()) return 'Укажи имя — без него не сможем привязать результат.';
+      if (!state.profile.contact.trim() && !state.profile.telegram.trim()) return 'Оставь хотя бы один контакт (телефон/email или Telegram), чтобы мы могли написать.';
     }
+    // Все остальные этапы — НЕ блокируем. Кандидат может пройти дальше или отправить как есть.
+    return '';
+  }
+
+  // Мягкая проверка — для подсветки незавершённых этапов, но не для блокировки.
+  function softCheck(index = step) {
+    const id = STAGES[index].id;
+    const filledTrends = getFilledTrends(state.trends);
     if (id === 'ideas') {
-      if (filledTrends.length < 3) return 'Нужно добавить минимум 3 идеи. Сильный кандидат может добавить больше.';
-      const weak = filledTrends.find(t => !t.source.trim() || !t.description.trim() || !t.upload.trim() || !t.output.trim() || !t.clickability.trim() || !t.audience.trim());
-      if (weak) return 'У каждой идеи должны быть источник, описание, что загрузит пользователь, что получит, почему кликнет и аудитория.';
+      if (filledTrends.length < 5) return `Идей пока ${filledTrends.length} из 5. Можешь добавить ещё или отправить как есть.`;
     }
     if (id === 'prompt') {
       const p = state.promptTest;
-      if (!p.trendId) return 'Выбери идею для промт-теста.';
-      if (!p.originalPrompt.trim() || !p.testResult.trim() || !p.improvedPrompt.trim() || !p.whatChanged.trim()) return 'Заполни промт, результат теста, улучшенный промт и что изменено.';
+      if (!p.originalPrompt.trim() || !p.improvedPrompt.trim()) return 'Желательно заполнить промт и улучшенную версию — это сердце роли.';
     }
     if (id === 'card') {
       const c = state.trendCard;
-      if (!c.trendId) return 'Выбери тренд для карточки.';
-      if (!c.title.trim() || !c.subtitle.trim() || !c.whatUpload.trim() || !c.whatResult.trim() || !c.priceHook.trim() || !c.qualityCheck.trim()) return 'Заполни название, подзаголовок, что загрузить, результат, крючок к оплате и чек качества.';
+      if (!c.title.trim() || !c.whatUpload.trim() || !c.whatResult.trim()) return 'Заполни хотя бы название, что загрузить и что получит — это основа карточки.';
     }
     if (id === 'content') {
       const p = state.packaging;
-      if (!p.trendId) return 'Выбери тренд для упаковки.';
-      if (!p.telegramPost.trim() || !p.botBroadcast.trim() || !p.bloggerStories.trim() || !p.cta.trim() || !p.cardTitles.trim()) return 'Заполни Telegram-пост, рассылку, сторис, CTA и заголовки.';
+      if (!p.telegramPost.trim() && !p.botBroadcast.trim()) return 'Напиши хотя бы один формат: пост или рассылку.';
     }
     if (id === 'analysis') {
       const k = state.kaizen;
-      if (!k.firstLaunch.trim() || !k.biggestPurchase.trim() || !k.weakestTrend.trim() || !k.metrics.trim() || !k.improve24h.trim()) return 'Заполни первый запуск, покупку, слабый тренд, метрики и улучшения через 24 часа.';
+      if (!k.firstLaunch.trim() && !k.metrics.trim()) return 'Напиши хотя бы что запустишь первым и какие метрики смотреть.';
     }
     if (id === 'psych') {
-      const unanswered = requiredPsychQuestions.find(q => state.psychology[q.id] === undefined);
-      if (unanswered) return 'Ответь на все вопросы психо-ритма.';
+      const answered = requiredPsychQuestions.filter(q => state.psychology[q.id] !== undefined).length;
+      if (answered < psychSoftMin) return `Ответил на ${answered} из ${requiredPsychQuestions.length}. Этот блок опциональный — можешь пропустить.`;
     }
     return '';
   }
 
   function canOpenStep(index) {
     if (index <= step) return true;
-    if (index === 0) return true;
-    const prevId = STAGES[index - 1]?.id;
-    if (prevId === 'result') return true;
-    return Boolean(state.timings?.stages?.[prevId]?.completedAt);
+    // intro и profile открыты всегда; после профиля — любые этапы свободно
+    if (index === 0 || index === 1) return true;
+    const profileOk = !validateStep(1);
+    return profileOk;
   }
 
   function goNext() {
@@ -263,9 +267,23 @@ function CandidatePage() {
     setStep(s => Math.min(STAGES.length - 1, s + 1));
   }
 
+  async function submitAsIs() {
+    // Отправка с любого этапа после профиля. Сначала проверим, что профиль заполнен.
+    const profileError = validateStep(1);
+    if (profileError) {
+      setStep(1);
+      setGateError(profileError);
+      return;
+    }
+    if (!confirm('Отправить тест как есть? Незаполненные этапы будут пустыми, но мы их увидим.')) return;
+    if (stageId !== 'result') completeStage(stageId);
+    setStep(STAGES.length - 1);
+    await doSubmit();
+  }
+
   function jumpToMissing() {
     for (let i = 0; i < STAGES.length - 1; i++) {
-      const err = validateStep(i);
+      const err = validateStep(i) || softCheck(i);
       if (err) {
         setStep(i);
         setGateError(err);
@@ -276,12 +294,16 @@ function CandidatePage() {
   }
 
   async function submit() {
-    const error = validateStep(6);
+    const error = validateStep(1); // только профиль обязателен
     if (error) {
-      setStep(6);
+      setStep(1);
       setGateError(error);
       return;
     }
+    await doSubmit();
+  }
+
+  async function doSubmit() {
     setSubmitState({ status: 'loading', message: 'Отправляем результат в Chappy...' });
     try {
       const payload = finalizeTimings(state);
@@ -328,19 +350,24 @@ function CandidatePage() {
           <StepHeader step={STAGES[step]} number={step + 1} total={STAGES.length} activeTimer={activeTimer} />
           {gateError && <div className="notice error">{gateError}</div>}
 
-          {step === 0 && <ProfileStep profile={state.profile} setProfile={(k, v) => mutate(prev => ({ ...prev, profile: { ...prev.profile, [k]: v } }))} />}
-          {step === 1 && <IdeasStep trends={state.trends} setState={mutate} />}
-          {step === 2 && <PromptTestStep state={state} setState={mutate} />}
-          {step === 3 && <TrendCardStep state={state} setState={mutate} />}
-          {step === 4 && <PackagingStep state={state} setState={mutate} />}
-          {step === 5 && <AnalysisStep kaizen={state.kaizen} setKaizen={(k, v) => mutate(prev => ({ ...prev, kaizen: { ...prev.kaizen, [k]: v } }))} />}
-          {step === 6 && <PsychologyStep answers={state.psychology} setAnswer={(id, value) => mutate(prev => ({ ...prev, psychology: { ...prev.psychology, [id]: Number(value) } }))} />}
-          {step === 7 && <ResultStep state={state} scores={scores} submitState={submitState} submit={submit} now={now} />}
+          {stageId === 'intro' && <IntroStep />}
+          {stageId === 'profile' && <ProfileStep profile={state.profile} setProfile={(k, v) => mutate(prev => ({ ...prev, profile: { ...prev.profile, [k]: v } }))} />}
+          {stageId === 'prompt' && <PromptTestStep state={state} setState={mutate} />}
+          {stageId === 'card' && <TrendCardStep state={state} setState={mutate} />}
+          {stageId === 'content' && <PackagingStep state={state} setState={mutate} />}
+          {stageId === 'ideas' && <IdeasStep trends={state.trends} setState={mutate} />}
+          {stageId === 'analysis' && <AnalysisStep kaizen={state.kaizen} setKaizen={(k, v) => mutate(prev => ({ ...prev, kaizen: { ...prev.kaizen, [k]: v } }))} />}
+          {stageId === 'psych' && <PsychologyStep answers={state.psychology} setAnswer={(id, value) => mutate(prev => ({ ...prev, psychology: { ...prev.psychology, [id]: Number(value) } }))} />}
+          {stageId === 'result' && <ResultStep state={state} scores={scores} submitState={submitState} submit={submit} now={now} />}
 
           <div className="navControls">
             <button className="ghostBtn" disabled={step === 0} onClick={() => { setGateError(''); setStep(s => Math.max(0, s - 1)); }}>Назад</button>
+            {/* Кнопка «Отправить как есть» доступна со 2-го этапа (после профиля), но не на самом result */}
+            {step >= 2 && stageId !== 'result' && (
+              <button className="ghostBtn" onClick={submitAsIs} disabled={submitState.status === 'loading'} title="Отправить с текущим прогрессом">Отправить как есть</button>
+            )}
             {step < STAGES.length - 1 ? (
-              <button className="primaryBtn" onClick={goNext}>Закрыть этап и дальше</button>
+              <button className="primaryBtn" onClick={goNext}>{stageId === 'intro' ? 'Начать' : 'Дальше'}</button>
             ) : (
               <button className="primaryBtn" onClick={submit} disabled={submitState.status === 'loading'}>Отправить в Chappy</button>
             )}
@@ -415,9 +442,9 @@ function Hero({ scores, state, now }) {
   return (
     <section className="hero">
       <div>
-        <p className="eyebrow">AI trend hiring system · Railway + Supabase ready</p>
-        <h1>Этапный тест: видно мышление, скорость и роль.</h1>
-        <p className="heroText">Кандидатка закрывает этапы по порядку: идеи → промт → карточка → контент → анализ. В админке видно не только ответ, но и скорость решения.</p>
+        <p className="eyebrow">ЧАППИ Junior Test · знакомство с продуктом</p>
+        <h1>Покажи мышление, а не идеальный ответ.</h1>
+        <p className="heroText">5 коротких заданий + опциональный блок про рабочий ритм. Любой этап можно пропустить или отправить как есть — финальное решение всё равно за руководителем.</p>
       </div>
       <div className="heroBadge">
         <span>{scores.total}</span>
@@ -432,13 +459,14 @@ function Hero({ scores, state, now }) {
 function Progress({ steps, step, setStep, canOpenStep, timings, now }) {
   return (
     <div className="progressBox">
-      <p className="panelTitle">Порядок теста</p>
+      <p className="panelTitle">Этапы (можно в любом порядке)</p>
       {steps.map((s, i) => {
         const st = timings?.stages?.[s.id];
         const locked = !canOpenStep(i);
+        const optional = s.id === 'psych';
         return (
-          <button key={s.id} disabled={locked} className={`stepPill ${i === step ? 'active' : ''} ${st?.completedAt ? 'done' : ''} ${locked ? 'locked' : ''}`} onClick={() => setStep(i)}>
-            <span>{i + 1}</span>
+          <button key={s.id} disabled={locked} className={`stepPill ${i === step ? 'active' : ''} ${st?.completedAt ? 'done' : ''} ${locked ? 'locked' : ''} ${optional ? 'optional' : ''}`} onClick={() => setStep(i)}>
+            <span>{i === 0 ? '✦' : i}</span>
             <b>{s.title}</b>
             {st?.startedAt && <small>{formatSeconds(getStageSeconds(st, now))}</small>}
           </button>
@@ -487,6 +515,83 @@ function ScoreCard({ scores, compact = false }) {
             <div><i style={{ width: `${value}%` }} /></div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function IntroStep() {
+  return (
+    <div className="introWrap">
+      <div className="introHero">
+        <p className="eyebrow">знакомство с ЧАППИ</p>
+        <h2>Привет! Это не экзамен, а знакомство с работой.</h2>
+        <p className="introLead">
+          ЧАППИ — это Telegram-бот, в котором пользователи запускают AI-тренды одним кликом: загружают фото, получают видео, артовое превращение или новый образ. А ты будешь в команде, которая придумывает эти тренды и упаковывает их в посты.
+        </p>
+      </div>
+
+      <div className="introCards">
+        <div className="introCard">
+          <span className="introCardTag">🎨 Реальный продукт</span>
+          <b>Это тренды, которые сейчас в боте</b>
+          <div className="introMiniCards">
+            <div className="miniCard" style={{ background: 'linear-gradient(135deg,#ff8fb1,#ffd86b)' }}>
+              <small>фото</small><b>Flamingo Fashion Editorial</b><em>♡ 15</em>
+            </div>
+            <div className="miniCard" style={{ background: 'linear-gradient(135deg,#6b8eff,#a5d8ff)' }}>
+              <small>фото</small><b>Студийный зимний коллаж</b><em>♡ 15</em>
+            </div>
+            <div className="miniCard" style={{ background: 'linear-gradient(135deg,#7c3aed,#3b1d6b)' }}>
+              <small>5с видео</small><b>Нелюбовь</b><em>♡ 0</em>
+            </div>
+            <div className="miniCard" style={{ background: 'linear-gradient(135deg,#0ea5e9,#1e1b4b)' }}>
+              <small>5с видео</small><b>Танец</b><em>♡ 0</em>
+            </div>
+          </div>
+        </div>
+
+        <div className="introCard">
+          <span className="introCardTag">👥 Две роли в команде</span>
+          <b>Куда ты можешь попасть</b>
+          <div className="rolePair">
+            <div className="roleBox">
+              <h3>Trend &amp; Prompt</h3>
+              <p>Ищет идеи, пишет промты под Veo / Midjourney / Sora, тестирует в боте, превращает результат в готовый тренд.</p>
+              <small>5 промтов фото + 5 видео + 1–2 тренда в день</small>
+            </div>
+            <div className="roleBox">
+              <h3>Content &amp; Creative</h3>
+              <p>Упаковывает тренды в Telegram-посты, дайджесты AI-новостей и рассылки в боте. Ведёт канал.</p>
+              <small>6–8 постов в день + 1–2 рассылки</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="introCard">
+          <span className="introCardTag">🧪 Что будет в тесте</span>
+          <b>5 коротких заданий — как один рабочий день</b>
+          <ol className="introList">
+            <li><b>Один промт</b> — напишешь свой и опишешь, что бы улучшил</li>
+            <li><b>Карточка тренда</b> — оформишь, как она появится в ЧАППИ</li>
+            <li><b>Пост / рассылка</b> — упакуешь идею в Telegram</li>
+            <li><b>5 идей</b> — накидаешь AI-трендов под бот</li>
+            <li><b>Что бы запустил первым</b> — коротко, своими словами</li>
+          </ol>
+          <p className="introHint">
+            И мини-блок про рабочий ритм в конце — <em>опциональный</em>. Любой этап можно пропустить и нажать «Отправить как есть» — мы посмотрим то, что успел.
+          </p>
+        </div>
+
+        <div className="introCard">
+          <span className="introCardTag">📊 Как оцениваем</span>
+          <b>Система покажет рекомендацию, но финальное решение — за руководителем</b>
+          <p>Мы смотрим на качество идей, понимание промта, упаковку, метрики и скорость. Это подсказка, а не приговор — даже неполный тест может быть сильным.</p>
+        </div>
+      </div>
+
+      <div className="introFooter">
+        <p>Готова? Жми <b>«Начать»</b> внизу — после профиля включится таймер, и можно идти по этапам в любом порядке.</p>
       </div>
     </div>
   );
